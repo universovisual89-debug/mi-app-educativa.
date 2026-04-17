@@ -8,8 +8,8 @@ st.set_page_config(page_title="Mi App Educativa", page_icon="🎨")
 # 1. Configurar la IA con la clave de los Secrets
 if "GOOGLE_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-    # Usamos gemini-pro que es el modelo más compatible actualmente
-    model = genai.GenerativeModel('gemini-pro')
+    # Cambiado a gemini-1.5-flash para evitar el error 404
+    model = genai.GenerativeModel('gemini-1.5-flash')
 else:
     st.error("⚠️ Falta configurar la clave API en Streamlit Cloud.")
 
@@ -21,7 +21,6 @@ tema = st.text_input("¿Qué tema quieres preparar hoy?", placeholder="Ej: Los S
 
 if st.button("✨ ¡Generar Contenido!"):
     if tema:
-        # Instrucción optimizada para niños
         prompt = f"""Actúa como un maestro de primaria experto. 
         Explica el tema '{tema}' para niños de 6 a 9 años. 
         Usa un lenguaje muy sencillo y divertido.
@@ -29,7 +28,7 @@ if st.button("✨ ¡Generar Contenido!"):
         1. Un título llamativo.
         2. Explicación breve (máximo 3 párrafos cortos).
         3. Un dato curioso que empiece con '¿Sabías que...?'.
-        No uses palabras difíciles ni tecnicismos."""
+        No uses palabras difíciles ni tecnicismos ni emojis."""
 
         with st.spinner("Escribiendo para los niños..."):
             try:
@@ -40,34 +39,34 @@ if st.button("✨ ¡Generar Contenido!"):
                 st.markdown(texto_final)
 
                 # --- GENERACIÓN DEL PDF ---
+                # Usamos FPDF con soporte latin-1 para evitar errores de tildes
                 pdf = FPDF()
                 pdf.add_page()
-                pdf.set_font("Arial", size=12)
+                pdf.set_auto_page_break(auto=True, margin=15)
                 
-                # Limpiamos el texto para evitar errores de símbolos extraños en el PDF
-                texto_limpio = texto_final.replace('**', '').replace('#', '')
-                
-                # Escribir el título
-                pdf.set_font("Arial", 'B', 16)
-                pdf.cell(0, 10, txt="Guia Educativa Personalizada", ln=True, align='C')
+                # Título del PDF
+                pdf.set_font("Helvetica", 'B', 16)
+                pdf.cell(0, 10, txt="Guía Educativa Personalizada", ln=True, align='C')
                 pdf.ln(10)
                 
-                # Escribir el contenido
-                pdf.set_font("Arial", size=12)
-                # El encode('latin-1', 'replace') evita que la app falle por tildes
-                pdf.multi_cell(0, 10, txt=texto_limpio.encode('latin-1', 'replace').decode('latin-1'))
+                # Contenido
+                pdf.set_font("Helvetica", size=12)
                 
-                # Guardar y crear botón de descarga
-                nombre_archivo = "guia_educativa.pdf"
-                pdf.output(nombre_archivo)
+                # Limpieza de caracteres Markdown que rompen el PDF simple
+                texto_pdf = texto_final.replace('**', '').replace('#', '').replace('*', '')
                 
-                with open(nombre_archivo, "rb") as f:
-                    st.download_button(
-                        label="📩 Descargar PDF para imprimir",
-                        data=f,
-                        file_name=f"Guia_{tema}.pdf",
-                        mime="application/pdf"
-                    )
+                # El encode/decode ayuda a que las tildes no rompan el PDF en la versión básica
+                pdf.multi_cell(0, 10, txt=texto_pdf.encode('latin-1', 'replace').decode('latin-1'))
+                
+                # Crear el botón de descarga
+                pdf_output = pdf.output(dest='S') # Genera el PDF como un string de bytes
+                
+                st.download_button(
+                    label="📩 Descargar PDF para imprimir",
+                    data=pdf_output,
+                    file_name=f"Guia_{tema.replace(' ', '_')}.pdf",
+                    mime="application/pdf"
+                )
             except Exception as e:
                 st.error(f"Hubo un error al generar: {e}")
     else:
